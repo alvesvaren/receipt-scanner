@@ -87,12 +87,28 @@ def process_receipt_file(pdf_path: str, database: Database, parser: ReceiptParse
     if verbose:
         print(f"\nInserting items into database...")
     
+    last_item_id = None
     for i, item in enumerate(receipt.items):
         category_id = categories.get(i)
         
+        # Skip discount items - they will be attached to previous item
+        if item.is_discount:
+            if last_item_id is not None:
+                database.insert_discount(
+                    item_id=last_item_id,
+                    amount=item.discount_amount,
+                    name=item.discount_name,
+                    raw=item.raw
+                )
+                if verbose:
+                    print(f"    └─ Rabatt: {item.discount_name} -{item.discount_amount:.2f} SEK")
+            else:
+                if verbose:
+                    print(f"  Warning: Discount without previous item: {item.discount_name}")
+            continue
+        
         if verbose:
-            discount_str = " [DISCOUNT]" if item.is_discount else ""
-            print(f"  - {item.name}: {item.price:.2f} SEK{discount_str}")
+            print(f"  - {item.name}: {item.price:.2f} SEK")
         
         # Insert item
         item_id = database.insert_item(
@@ -103,6 +119,7 @@ def process_receipt_file(pdf_path: str, database: Database, parser: ReceiptParse
             count=item.count,
             raw=item.raw
         )
+        last_item_id = item_id
         
         # If it's a weighted item, add weight details
         if item.weight is not None:
@@ -111,15 +128,6 @@ def process_receipt_file(pdf_path: str, database: Database, parser: ReceiptParse
                 weight=item.weight,
                 price_per_unit=item.price_per_unit,
                 unit=item.unit,
-                raw=item.raw
-            )
-        
-        # If it's a discount, add discount details
-        if item.is_discount:
-            database.insert_discount(
-                item_id=item_id,
-                amount=item.discount_amount,
-                name=item.discount_name,
                 raw=item.raw
             )
     

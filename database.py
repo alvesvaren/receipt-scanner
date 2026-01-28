@@ -97,19 +97,6 @@ class Database:
                 )
             """)
             
-            # Create indices for faster lookups
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_items_receipt 
-                ON Items(receiptId)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_items_category 
-                ON Items(categoryId)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_receipts_date 
-                ON Receipts(date)
-            """)
     
     def get_or_create_category(self, name: str) -> int:
         """Get existing category or create new one"""

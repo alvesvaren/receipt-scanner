@@ -94,12 +94,14 @@ def print_top_items(conn: sqlite3.Connection, limit: int = 10):
     """Show most expensive items"""
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT i.name, i.price, c.name as category, r.date
+        SELECT i.name, i.price, c.name as category, r.date, SUM(i.price) - SUM(d.amount) as total
         FROM Items i
         LEFT JOIN Categories c ON i.categoryId = c.id
         LEFT JOIN Receipts r ON i.receiptId = r.id
+        LEFT JOIN Discounts d ON i.id = d.id
         WHERE i.price > 0
-        ORDER BY i.price DESC
+        GROUP BY i.name
+        ORDER BY total DESC
         LIMIT ?
     """, (limit,))
     
@@ -109,7 +111,7 @@ def print_top_items(conn: sqlite3.Connection, limit: int = 10):
     
     for i, row in enumerate(cursor, 1):
         category = row['category'] or 'Ingen'
-        print(f"{i:2}. {row['name']:30} {row['price']:8.2f} SEK ({category})")
+        print(f"{i:2}. {row['name']:30} {row['price']:8.2f} ({row['total']:.2f} SEK) ({category})")
     
     print("="*60)
 

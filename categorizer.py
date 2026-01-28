@@ -46,6 +46,8 @@ class Categorizer:
         """Initialize all predefined categories in database"""
         for category in CATEGORIES:
             self.database.get_or_create_category(category)
+        # Also create "unknown" category for failed categorizations
+        self.database.get_or_create_category("unknown")
     
     def _call_ollama(self, item_name: str) -> Optional[str]:
         """Call Ollama to categorize an item"""
@@ -95,22 +97,25 @@ Kategori:"""
                 category = result.get("response", "").strip().lower()
                 
                 # Clean up the response - sometimes the model adds extra text
+                # Only accept exact matches from our predefined categories
+                category_clean = category.strip().lower()
                 for cat in CATEGORIES:
-                    if cat in category:
+                    if cat == category_clean or cat in category_clean:
                         return cat
                 
-                # If no exact match, return the full response
-                return category if category else "övrigt"
+                # If no match from our list, default to "unknown"
+                print(f"Warning: Ollama returned unknown category '{category}', using 'unknown'")
+                return "unknown"
             else:
                 print(f"Ollama error: {response.status_code}")
                 return "övrigt"
         
         except requests.exceptions.RequestException as e:
             print(f"Failed to connect to Ollama: {e}")
-            return "övrigt"
+            return "unknown"
         except Exception as e:
             print(f"Error calling Ollama: {e}")
-            return "övrigt"
+            return "unknown"
     
     def categorize_item(self, item_name: str, verbose: bool = False) -> int:
         """
