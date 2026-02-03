@@ -89,7 +89,7 @@ Kategori:"""
                         "num_predict": 20     # We only need one word
                     }
                 },
-                timeout=30
+                timeout=100
             )
             
             if response.status_code == 200:
