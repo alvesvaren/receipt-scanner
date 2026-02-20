@@ -129,10 +129,9 @@ class Database:
                 ) latest
                     ON latest.latest_item_id = i.id
             )
-            INSERT INTO CategoriesForItemNames (name, categoryId)
+            INSERT OR REPLACE INTO CategoriesForItemNames (name, categoryId)
             SELECT name, categoryId
             FROM LatestCategories
-            ON CONFLICT(name) DO UPDATE SET categoryId = excluded.categoryId
         """)
 
         cursor.execute("DROP TABLE IF EXISTS Items_bcnf")
