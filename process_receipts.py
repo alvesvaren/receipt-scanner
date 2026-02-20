@@ -81,7 +81,7 @@ def process_receipt_file(pdf_path: str, database: Database, parser: ReceiptParse
         print(f"\nCategorizing items...")
     
     # Categorize all items
-    categories = categorizer.categorize_all_items_in_receipt(receipt.items, verbose=verbose)
+    categorizer.categorize_all_items_in_receipt(receipt.items, verbose=verbose)
     
     # Process items
     if verbose:
@@ -89,8 +89,6 @@ def process_receipt_file(pdf_path: str, database: Database, parser: ReceiptParse
     
     last_item_id = None
     for i, item in enumerate(receipt.items):
-        category_id = categories.get(i)
-        
         # Skip discount items - they will be attached to previous item
         if item.is_discount:
             if last_item_id is not None:
@@ -115,7 +113,6 @@ def process_receipt_file(pdf_path: str, database: Database, parser: ReceiptParse
             price=item.price,
             name=item.name,
             receipt_id=receipt_id,
-            category_id=category_id,
             count=item.count,
             raw=item.raw
         )

@@ -32,7 +32,6 @@ Ett Python-script för att processa kvitton från PDF-filer, extrahera items och
 - `price` - Pris
 - `name` - Produktnamn
 - `receiptId` -> Receipts.id
-- `categoryId` -> Categories.id
 - `count` - Antal (default: 1)
 - `raw` - Rå textraden
 
@@ -51,7 +50,7 @@ Ett Python-script för att processa kvitton från PDF-filer, extrahera items och
 
 **CategoriesForItemNames** (cache för kategorisering)
 - `name` (PRIMARY KEY) - Produktnamn
-- `categoryId` -> Categories.id
+- `categoryId` -> Categories.id (source of truth för kategori per produktnamn)
 
 ## Installation
 
@@ -202,19 +201,13 @@ sqlite3 receipts.db
 -- Se alla kategorier
 SELECT * FROM Categories;
 
--- Uppdatera kategori för en specifik produkt
-UPDATE Items SET categoryId = 1 WHERE name = 'PORT SALUT 26%';
-
--- Uppdatera cachen så att framtida kvitton får rätt kategori
+-- Uppdatera kategorimappningen (påverkar statistik/export och framtida kvitton)
 UPDATE CategoriesForItemNames SET categoryId = 1 WHERE name = 'PORT SALUT 26%';
 
 -- Exempel: Hitta mejeri-kategorins ID
 SELECT id FROM Categories WHERE name = 'mejeri';  -- t.ex. 1
 
 -- Uppdatera alla "MELLANROST" till drycker-kategorin
-UPDATE Items SET categoryId = (SELECT id FROM Categories WHERE name = 'drycker') 
-WHERE name LIKE 'MELLANROST%';
-
 UPDATE CategoriesForItemNames SET categoryId = (SELECT id FROM Categories WHERE name = 'drycker')
 WHERE name LIKE 'MELLANROST%';
 ```
@@ -225,7 +218,8 @@ WHERE name LIKE 'MELLANROST%';
 -- Totalt spenderat per kategori
 SELECT c.name, SUM(i.price) as total
 FROM Items i
-JOIN Categories c ON i.categoryId = c.id
+JOIN CategoriesForItemNames cin ON i.name = cin.name
+JOIN Categories c ON cin.categoryId = c.id
 GROUP BY c.name
 ORDER BY total DESC;
 
@@ -249,7 +243,8 @@ ORDER BY month DESC;
 SELECT i.name, i.price, c.name as category
 FROM Items i
 JOIN Receipts r ON i.receiptId = r.id
-LEFT JOIN Categories c ON i.categoryId = c.id
+LEFT JOIN CategoriesForItemNames cin ON i.name = cin.name
+LEFT JOIN Categories c ON cin.categoryId = c.id
 WHERE r.storeName LIKE '%GULDHEDEN%'
 ORDER BY i.price DESC;
 ```

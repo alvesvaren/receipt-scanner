@@ -20,7 +20,8 @@ def print_spending_by_category(conn: sqlite3.Connection):
     cursor.execute("""
         SELECT c.name, COUNT(i.id) as item_count, SUM(i.price) as total
         FROM Items i
-        LEFT JOIN Categories c ON i.categoryId = c.id
+        LEFT JOIN CategoriesForItemNames cin ON i.name = cin.name
+        LEFT JOIN Categories c ON cin.categoryId = c.id
         WHERE i.price > 0
         GROUP BY c.name
         ORDER BY total DESC
@@ -94,13 +95,19 @@ def print_top_items(conn: sqlite3.Connection, limit: int = 10):
     """Show most expensive items"""
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT i.name, i.price, c.name as category, r.date, SUM(i.price) - SUM(d.amount) as total
+        SELECT
+            i.name,
+            MAX(i.price) as price,
+            c.name as category,
+            MAX(r.date) as date,
+            SUM(i.price) - COALESCE(SUM(d.amount), 0) as total
         FROM Items i
-        LEFT JOIN Categories c ON i.categoryId = c.id
+        LEFT JOIN CategoriesForItemNames cin ON i.name = cin.name
+        LEFT JOIN Categories c ON cin.categoryId = c.id
         LEFT JOIN Receipts r ON i.receiptId = r.id
         LEFT JOIN Discounts d ON i.id = d.id
         WHERE i.price > 0
-        GROUP BY i.name
+        GROUP BY i.name, c.name
         ORDER BY total DESC
         LIMIT ?
     """, (limit,))
