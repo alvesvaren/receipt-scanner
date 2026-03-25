@@ -265,3 +265,8 @@ Några möjliga förbättringar:
 5. **Manuell korrigering**: Möjlighet att manuellt korrigera kategorier
 6. **Duplicate detection**: Mer sofistikerad dubblettdetektering
 7. **OCR support**: Stöd för skannade bilder (inte bara PDF med text)
+
+
+## Disclaimer
+
+Detta projekt är "personal software" som jag delat med mig av om något eventuellt har samma idé som mig. Projektet är vibe-codeat med min guidning till att skapa ett enkelt sätt att på detaljnivå hålla bra koll på vad jag spenderar pengar på utan att det tar extra tid för mig.
