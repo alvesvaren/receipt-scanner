@@ -2,7 +2,7 @@
 Database schema and operations for receipt scanner
 """
 import sqlite3
-from typing import Optional, Dict, Any
+from typing import Optional
 from contextlib import contextmanager
 
 
@@ -50,21 +50,31 @@ class Database:
                 )
             """)
             
-            # Items table
+            # CategoriesForItemNames - cache for item name -> category mapping
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS CategoriesForItemNames (
+                    name TEXT PRIMARY KEY,
+                    categoryId INTEGER NOT NULL,
+                    FOREIGN KEY (categoryId) REFERENCES Categories(id)
+                )
+            """)
+
+            # Items table (BCNF): category mapping is separated to CategoriesForItemNames
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS Items (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     price REAL NOT NULL,
                     name TEXT NOT NULL,
                     receiptId INTEGER NOT NULL,
-                    categoryId INTEGER,
                     count INTEGER DEFAULT 1,
                     raw TEXT NOT NULL,
-                    FOREIGN KEY (receiptId) REFERENCES Receipts(id),
-                    FOREIGN KEY (categoryId) REFERENCES Categories(id)
+                    FOREIGN KEY (receiptId) REFERENCES Receipts(id)
                 )
             """)
-            
+
+            # Migrate legacy schema where Items also stored categoryId
+            self._migrate_items_table_to_bcnf(cursor)
+
             # WeightedItems table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS WeightedItems (
@@ -76,7 +86,7 @@ class Database:
                     FOREIGN KEY (id) REFERENCES Items(id)
                 )
             """)
-            
+
             # Discounts table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS Discounts (
@@ -87,16 +97,62 @@ class Database:
                     FOREIGN KEY (id) REFERENCES Items(id)
                 )
             """)
-            
-            # CategoriesForItemNames - cache for item name -> category mapping
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS CategoriesForItemNames (
-                    name TEXT PRIMARY KEY,
-                    categoryId INTEGER NOT NULL,
-                    FOREIGN KEY (categoryId) REFERENCES Categories(id)
-                )
-            """)
-            
+
+            # Helpful indexes
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_items_name ON Items(name)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_items_receipt_id ON Items(receiptId)")
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_categoriesforitemnames_category "
+                "ON CategoriesForItemNames(categoryId)"
+            )
+
+    def _migrate_items_table_to_bcnf(self, cursor):
+        """
+        Normalize legacy Items schema by removing categoryId from Items.
+        Item->category mapping is migrated into CategoriesForItemNames.
+        """
+        cursor.execute("PRAGMA table_info(Items)")
+        columns = [row["name"] for row in cursor.fetchall()]
+        if "categoryId" not in columns:
+            return
+
+        # Keep the latest category assignment for each item name.
+        cursor.execute("""
+            WITH LatestCategories AS (
+                SELECT i.name, i.categoryId
+                FROM Items i
+                INNER JOIN (
+                    SELECT name, MAX(id) AS latest_item_id
+                    FROM Items
+                    WHERE categoryId IS NOT NULL
+                    GROUP BY name
+                ) latest
+                    ON latest.latest_item_id = i.id
+            )
+            INSERT OR REPLACE INTO CategoriesForItemNames (name, categoryId)
+            SELECT name, categoryId
+            FROM LatestCategories
+        """)
+
+        cursor.execute("DROP TABLE IF EXISTS Items_bcnf")
+        cursor.execute("""
+            CREATE TABLE Items_bcnf (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                price REAL NOT NULL,
+                name TEXT NOT NULL,
+                receiptId INTEGER NOT NULL,
+                count INTEGER DEFAULT 1,
+                raw TEXT NOT NULL,
+                FOREIGN KEY (receiptId) REFERENCES Receipts(id)
+            )
+        """)
+        cursor.execute("""
+            INSERT INTO Items_bcnf (id, price, name, receiptId, count, raw)
+            SELECT id, price, name, receiptId, count, raw
+            FROM Items
+        """)
+        cursor.execute("DROP TABLE Items")
+        cursor.execute("ALTER TABLE Items_bcnf RENAME TO Items")
     
     def get_or_create_category(self, name: str) -> int:
         """Get existing category or create new one"""
@@ -143,14 +199,14 @@ class Database:
             return cursor.lastrowid
     
     def insert_item(self, price: float, name: str, receipt_id: int,
-                   category_id: Optional[int], count: int, raw: str) -> int:
+                   count: int, raw: str) -> int:
         """Insert an item and return its id"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                """INSERT INTO Items (price, name, receiptId, categoryId, count, raw)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (price, name, receipt_id, category_id, count, raw)
+                """INSERT INTO Items (price, name, receiptId, count, raw)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (price, name, receipt_id, count, raw)
             )
             return cursor.lastrowid
     

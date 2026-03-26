@@ -24,7 +24,8 @@ def export_items(conn: sqlite3.Connection, output_file: str):
             w.pricePerUnit,
             w.unit
         FROM Items i
-        LEFT JOIN Categories c ON i.categoryId = c.id
+        LEFT JOIN CategoriesForItemNames cin ON i.name = cin.name
+        LEFT JOIN Categories c ON cin.categoryId = c.id
         LEFT JOIN Receipts r ON i.receiptId = r.id
         LEFT JOIN WeightedItems w ON i.id = w.id
         WHERE i.price > 0
@@ -87,7 +88,8 @@ def export_categories(conn: sqlite3.Connection, output_file: str):
             COUNT(i.id) as item_count,
             SUM(i.price) as total_spent
         FROM Items i
-        LEFT JOIN Categories c ON i.categoryId = c.id
+        LEFT JOIN CategoriesForItemNames cin ON i.name = cin.name
+        LEFT JOIN Categories c ON cin.categoryId = c.id
         WHERE i.price > 0
         GROUP BY c.name
         ORDER BY total_spent DESC
